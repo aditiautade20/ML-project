@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, API_BASE_URL } from './client';
 
 export async function getDashboardAnalytics() {
   return apiRequest('/api/reports/dashboard', {
@@ -23,13 +23,14 @@ export async function getReportsAnalytics(params = {}) {
  * and triggering browser download.
  */
 async function downloadAuthenticatedFile(endpoint, defaultFilename) {
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('invoiceiq_token') || localStorage.getItem('token');
   const headers = {};
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(endpoint, {
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+  const response = await fetch(url, {
     method: 'GET',
     headers,
   });

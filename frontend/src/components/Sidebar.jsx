@@ -3,8 +3,6 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   FileText,
-  CreditCard,
-  CalendarClock,
   BrainCircuit,
   BarChart3,
   Scale,
@@ -16,10 +14,7 @@ import { useAuth } from '../context/AuthContext';
 const navigationItems = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { name: 'Invoices', path: '/invoices', icon: FileText },
-  { name: 'Payment Tracker', path: '/payments', icon: CreditCard },
-  { name: 'Payment Deadlines', path: '/deadlines', icon: CalendarClock },
-  { name: 'Reconciliation', path: '/reconciliation', icon: Scale },
-  { name: 'Anomaly Detection', path: '/anomalies', icon: BrainCircuit },
+  { name: 'Ledger', path: '/reconciliation', icon: Scale },
   { name: 'Reports', path: '/reports', icon: BarChart3 },
 ];
 

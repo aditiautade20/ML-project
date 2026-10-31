@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   CreditCard,
   Plus,
@@ -18,6 +19,9 @@ import {
   AlertTriangle,
   ArrowRight,
   Filter,
+  UploadCloud,
+  Eye,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   getPayments,
@@ -29,6 +33,7 @@ import {
 import { getInvoices } from '../api/invoices';
 
 export default function PaymentTracker() {
+  const navigate = useNavigate();
   // Navigation Tab: 'invoices' (Invoice Balances & Tracking) or 'transactions' (Payment Transaction Log)
   const [activeTab, setActiveTab] = useState('invoices');
 
@@ -320,30 +325,133 @@ export default function PaymentTracker() {
   // Format Status Badge
   const renderPaymentStatusBadge = (status) => {
     const s = (status || 'UNPAID').toUpperCase();
-    if (s === 'PAID') {
+    switch (s) {
+      case 'PAID_ON_TIME':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Paid on Time
+          </span>
+        );
+      case 'PAID_LATE':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-300">
+            Paid Late
+          </span>
+        );
+      case 'PARTIALLY_PAID_OVERDUE':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-300">
+            Partially Paid — Overdue
+          </span>
+        );
+      case 'PARTIALLY_PAID':
+      case 'PARTIAL':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+            Partially Paid
+          </span>
+        );
+      case 'OVERDUE_UNCONFIRMED':
+      case 'OVERDUE':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+            Overdue — Payment Not Confirmed
+          </span>
+        );
+      case 'UPCOMING_UNPAID':
+      case 'DUE_SOON':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+            Upcoming / Unpaid
+          </span>
+        );
+      case 'PAYMENT_UNVERIFIED':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+            Payment Unverified
+          </span>
+        );
+      case 'NEEDS_REVIEW':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            Needs Review
+          </span>
+        );
+      case 'PAID':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-200">
+            Paid
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+            Unpaid
+          </span>
+        );
+    }
+  };
+
+  // Timing badge (Days Remaining / Overdue / Late)
+  const renderTimingBadge = (inv) => {
+    if (inv.days_late != null && inv.days_late > 0) {
       return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-          Paid
+        <span className="inline-flex items-center text-2xs font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 whitespace-nowrap">
+          Paid {inv.days_late}d late
         </span>
       );
     }
-    if (s === 'PARTIAL' || s === 'PARTIALLY_PAID' || s === 'PARTIALLY PAID') {
+    if (inv.days_overdue != null && inv.days_overdue > 0) {
       return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-          Partially Paid
+        <span className="inline-flex items-center text-2xs font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 whitespace-nowrap">
+          {inv.days_overdue}d overdue
         </span>
       );
     }
-    if (s === 'OVERDUE') {
+    if (inv.days_remaining != null) {
+      if (inv.days_remaining === 0) {
+        return (
+          <span className="inline-flex items-center text-2xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 whitespace-nowrap">
+            Due today
+          </span>
+        );
+      }
       return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-          Overdue
+        <span className="inline-flex items-center text-2xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 whitespace-nowrap">
+          In {inv.days_remaining}d
+        </span>
+      );
+    }
+    return <span className="text-slate-400 text-2xs">—</span>;
+  };
+
+  // Verification Source Badge
+  const renderVerificationSourceBadge = (source) => {
+    if (!source || source === 'MANUAL_ENTRY') {
+      return (
+        <span className="inline-flex items-center text-2xs font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 whitespace-nowrap">
+          Manual Claim
+        </span>
+      );
+    }
+    if (source === 'BANK_STATEMENT') {
+      return (
+        <span className="inline-flex items-center gap-1 text-2xs font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 whitespace-nowrap">
+          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+          Bank Statement
+        </span>
+      );
+    }
+    if (source === 'GENERAL_LEDGER') {
+      return (
+        <span className="inline-flex items-center text-2xs font-medium text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 whitespace-nowrap">
+          General Ledger
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-        Unpaid
+      <span className="inline-flex items-center text-2xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 whitespace-nowrap">
+        {source}
       </span>
     );
   };
@@ -427,13 +535,42 @@ export default function PaymentTracker() {
           </p>
         </div>
 
-        <button
-          onClick={() => handleOpenRecordModal()}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-sm font-medium transition-colors shadow-xs shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Record Payment</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => navigate('/reconciliation')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-md transition-colors shadow-2xs"
+            title="Import bank statements or accounting ledgers"
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>Upload Payment Evidence</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/reconciliation')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-md transition-colors"
+            title="Review matched and mismatched bank transactions"
+          >
+            <CheckCircle2 className="w-4 h-4 text-slate-500" />
+            <span>View Reconciliation</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/deadlines')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-md transition-colors"
+            title="View deadline calendar and upcoming due dates"
+          >
+            <Clock className="w-4 h-4 text-slate-500" />
+            <span>Payment Deadlines</span>
+          </button>
+
+          <button
+            onClick={() => handleOpenRecordModal()}
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-xs font-medium transition-colors shadow-2xs shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Record Payment</span>
+          </button>
+        </div>
       </div>
 
       {/* Global Notifications */}
@@ -578,12 +715,42 @@ export default function PaymentTracker() {
                 className="px-3 py-2 text-sm bg-white border border-slate-200 rounded-md text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-teal-600 cursor-pointer"
               >
                 <option value="ALL">All Payment Statuses</option>
+                <option value="UPCOMING">Upcoming / Unpaid</option>
                 <option value="UNPAID">Unpaid</option>
+                <option value="OVERDUE">Overdue — Payment Not Confirmed</option>
                 <option value="PARTIAL">Partially Paid</option>
-                <option value="PAID">Paid</option>
-                <option value="OVERDUE">Overdue</option>
+                <option value="PAID_ON_TIME">Paid on Time</option>
+                <option value="PAID_LATE">Paid Late</option>
+                <option value="UNVERIFIED">Payment Unverified</option>
+                <option value="NEEDS_REVIEW">Needs Review</option>
               </select>
             </div>
+          </div>
+
+          {/* Quick Filter Pills */}
+          <div className="flex flex-wrap items-center gap-1.5 px-1">
+            {[
+              { id: 'ALL', label: 'All Invoices' },
+              { id: 'UPCOMING', label: 'Upcoming' },
+              { id: 'OVERDUE', label: 'Overdue' },
+              { id: 'PARTIAL', label: 'Partially Paid' },
+              { id: 'PAID_ON_TIME', label: 'Paid on Time' },
+              { id: 'PAID_LATE', label: 'Paid Late' },
+              { id: 'UNVERIFIED', label: 'Payment Unverified' },
+              { id: 'NEEDS_REVIEW', label: 'Needs Review' },
+            ].map((chip) => (
+              <button
+                key={chip.id}
+                onClick={() => setInvoiceStatusFilter(chip.id)}
+                className={`px-2.5 py-1 text-2xs font-medium rounded-full transition-colors ${
+                  invoiceStatusFilter === chip.id
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {chip.label}
+              </button>
+            ))}
           </div>
 
           {/* Invoices Table */}
@@ -618,18 +785,22 @@ export default function PaymentTracker() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-slate-700 divide-y divide-slate-200">
-                  <thead className="bg-slate-50 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                <table className="w-full text-left text-xs text-slate-700 divide-y divide-slate-200">
+                  <thead className="bg-slate-50 text-2xs font-semibold text-slate-600 uppercase tracking-wider">
                     <tr>
-                      <th className="px-6 py-3.5">Invoice #</th>
-                      <th className="px-6 py-3.5">Supplier / Vendor</th>
-                      <th className="px-6 py-3.5">Due Date & Urgency</th>
-                      <th className="px-6 py-3.5">Review & Eligibility</th>
-                      <th className="px-6 py-3.5 text-right">Invoice Total</th>
-                      <th className="px-6 py-3.5 text-right">Amount Paid</th>
-                      <th className="px-6 py-3.5 text-right">Remaining Balance</th>
-                      <th className="px-6 py-3.5 text-center">Payment Status</th>
-                      <th className="px-6 py-3.5 text-right">Actions</th>
+                      <th className="px-4 py-3">Invoice #</th>
+                      <th className="px-4 py-3">Supplier / Counterparty</th>
+                      <th className="px-4 py-3">Dates (Inv / Due)</th>
+                      <th className="px-4 py-3 text-right">Invoice Total</th>
+                      <th className="px-4 py-3 text-right">Verified Paid</th>
+                      <th className="px-4 py-3 text-right">Unverified Claims</th>
+                      <th className="px-4 py-3 text-right">Outstanding Balance</th>
+                      <th className="px-4 py-3 text-center">Actual Pay Date</th>
+                      <th className="px-4 py-3 text-center">Verification Source</th>
+                      <th className="px-4 py-3 text-center">Payment Status</th>
+                      <th className="px-4 py-3 text-center">Timing Details</th>
+                      <th className="px-4 py-3">Matched Ref / Discrepancy</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
@@ -638,57 +809,104 @@ export default function PaymentTracker() {
                       const hasBalance = balanceNum > 0.001;
                       return (
                         <tr key={inv.id} className="hover:bg-slate-50/70 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          {/* 1. Invoice Number */}
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <div className="font-semibold text-slate-900">
                               {inv.invoice_number}
                             </div>
-                            <div className="text-2xs text-slate-400 mt-0.5">
-                              Dated: {inv.invoice_date || '—'}
-                            </div>
+                            {inv.customer_name && (
+                              <div className="text-[10px] text-slate-400">
+                                Customer: {inv.customer_name}
+                              </div>
+                            )}
                           </td>
 
-                          <td className="px-6 py-4 text-slate-800 font-medium whitespace-nowrap">
+                          {/* 2. Supplier / Vendor */}
+                          <td className="px-4 py-3 text-slate-800 font-medium whitespace-nowrap">
                             {inv.vendor_name || '—'}
                           </td>
 
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {renderDueDateBadge(inv.due_date)}
+                          {/* 3. Invoice Date & Due Date */}
+                          <td className="px-4 py-3 whitespace-nowrap text-2xs text-slate-600">
+                            <div>Inv: {inv.invoice_date || '—'}</div>
+                            <div className="font-medium text-slate-800">Due: {inv.due_date || '—'}</div>
                           </td>
 
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {renderReviewStatusBadge(inv)}
-                          </td>
-
-                          <td className="px-6 py-4 text-right font-medium text-slate-900 whitespace-nowrap">
+                          {/* 4. Invoice Total */}
+                          <td className="px-4 py-3 text-right font-medium text-slate-900 whitespace-nowrap">
                             {formatCurrency(inv.total_amount, inv.currency)}
                           </td>
 
-                          <td className="px-6 py-4 text-right font-medium text-emerald-700 whitespace-nowrap">
-                            {formatCurrency(inv.amount_paid, inv.currency)}
+                          {/* 5. Verified Paid */}
+                          <td className="px-4 py-3 text-right font-semibold text-emerald-700 whitespace-nowrap">
+                            {formatCurrency(inv.verified_paid || 0, inv.currency)}
                           </td>
 
-                          <td className="px-6 py-4 text-right font-bold whitespace-nowrap">
-                            <span className={hasBalance ? 'text-amber-700' : 'text-slate-400'}>
+                          {/* 6. Unverified Claims */}
+                          <td className="px-4 py-3 text-right font-medium text-amber-700 whitespace-nowrap">
+                            {parseFloat(inv.unverified_paid || 0) > 0 ? (
+                              formatCurrency(inv.unverified_paid, inv.currency)
+                            ) : (
+                              <span className="text-slate-300">$0.00</span>
+                            )}
+                          </td>
+
+                          {/* 7. Outstanding Balance */}
+                          <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
+                            <span className={hasBalance ? 'text-rose-700' : 'text-slate-400'}>
                               {formatCurrency(inv.balance_due, inv.currency)}
                             </span>
                           </td>
 
-                          <td className="px-6 py-4 text-center whitespace-nowrap">
-                            {renderPaymentStatusBadge(inv.payment_status)}
+                          {/* 8. Actual Payment Date */}
+                          <td className="px-4 py-3 text-center whitespace-nowrap text-2xs font-medium text-slate-800">
+                            {inv.actual_payment_date || '—'}
                           </td>
 
-                          <td className="px-6 py-4 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-2">
+                          {/* 9. Verification Source */}
+                          <td className="px-4 py-3 text-center whitespace-nowrap">
+                            {renderVerificationSourceBadge(inv.evidence_source)}
+                          </td>
+
+                          {/* 10. Payment Status */}
+                          <td className="px-4 py-3 text-center whitespace-nowrap">
+                            {renderPaymentStatusBadge(inv.granular_status || inv.payment_status)}
+                          </td>
+
+                          {/* 11. Timing Details */}
+                          <td className="px-4 py-3 text-center whitespace-nowrap">
+                            {renderTimingBadge(inv)}
+                          </td>
+
+                          {/* 12. Matched Ref / Discrepancy */}
+                          <td className="px-4 py-3 whitespace-nowrap text-2xs">
+                            {inv.mismatch_reason ? (
+                              <span className="text-rose-700 font-medium" title={inv.mismatch_reason}>
+                                ⚠ {inv.mismatch_reason.length > 25 ? `${inv.mismatch_reason.slice(0, 25)}...` : inv.mismatch_reason}
+                              </span>
+                            ) : inv.matched_reference ? (
+                              <span className="font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                                {inv.matched_reference}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+
+                          {/* Actions: Record Payment & View Details */}
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
                               {hasBalance ? (
                                 <button
                                   onClick={() => handleOpenRecordModal(inv)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-xs font-medium transition-colors shadow-2xs"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded text-xs font-medium transition-colors shadow-2xs"
+                                  title="Record payment settlement"
                                 >
-                                  <DollarSign className="w-3.5 h-3.5" />
+                                  <DollarSign className="w-3 h-3" />
                                   <span>Record Payment</span>
                                 </button>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-2xs font-semibold text-emerald-700 bg-emerald-50 rounded-md">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-2xs font-semibold text-emerald-700 bg-emerald-50 rounded">
                                   <CheckCircle2 className="w-3 h-3" />
                                   Settled
                                 </span>
@@ -696,10 +914,11 @@ export default function PaymentTracker() {
 
                               <button
                                 onClick={() => handleOpenHistoryModal(inv)}
-                                title="View Payment History"
-                                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
+                                title="View Details, Payment History & Audit Logs"
+                                className="inline-flex items-center gap-1 px-2 py-1 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded text-xs font-medium transition-colors"
                               >
-                                <History className="w-4 h-4" />
+                                <Eye className="w-3 h-3 text-slate-500" />
+                                <span>View Details</span>
                               </button>
                             </div>
                           </td>
@@ -967,6 +1186,10 @@ export default function PaymentTracker() {
                 </div>
               )}
 
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 leading-relaxed">
+                <strong>Audit Notice:</strong> Manual payment recording stores an <em>Unverified Claim</em>. To officially verify this payment and clear it against bank debit records, upload a matching bank statement in the Reconciliation Centre.
+              </div>
+
               {/* Payment Amount */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
@@ -1089,19 +1312,22 @@ export default function PaymentTracker() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2: Invoice Payment History Modal                                    */}
+      {/* MODAL 2: Invoice Details, Payment History & Audit Log Modal               */}
       {/* ========================================================================= */}
       {historyInvoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-lg w-full overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-2xl w-full flex flex-col max-h-[90vh] overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
               <div className="flex items-center gap-2">
-                <History className="w-5 h-5 text-teal-600" />
+                <FileText className="w-5 h-5 text-teal-600" />
                 <div>
                   <h3 className="text-base font-semibold text-slate-900">
-                    Payment History: {historyInvoice.invoice_number}
+                    Invoice Details: #{historyInvoice.invoice_number}
                   </h3>
-                  <p className="text-xs text-slate-500">{historyInvoice.vendor_name}</p>
+                  <p className="text-xs text-slate-500">
+                    {historyInvoice.vendor_name}
+                    {historyInvoice.customer_name ? ` • Customer: ${historyInvoice.customer_name}` : ''}
+                  </p>
                 </div>
               </div>
               <button
@@ -1112,9 +1338,9 @@ export default function PaymentTracker() {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto">
               {/* Balances summary */}
-              <div className="grid grid-cols-3 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-md text-center">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-md text-center">
                 <div>
                   <span className="text-2xs text-slate-500 uppercase font-semibold">Total Amount</span>
                   <p className="text-sm font-bold text-slate-900">
@@ -1122,56 +1348,189 @@ export default function PaymentTracker() {
                   </p>
                 </div>
                 <div>
-                  <span className="text-2xs text-slate-500 uppercase font-semibold">Amount Paid</span>
+                  <span className="text-2xs text-slate-500 uppercase font-semibold">Verified Paid</span>
                   <p className="text-sm font-bold text-emerald-700">
-                    {formatCurrency(historyInvoice.amount_paid, historyInvoice.currency)}
+                    {formatCurrency(historySummary?.verified_paid != null ? historySummary.verified_paid : (historyInvoice.verified_paid || 0), historyInvoice.currency)}
                   </p>
                 </div>
                 <div>
-                  <span className="text-2xs text-slate-500 uppercase font-semibold">Balance Due</span>
+                  <span className="text-2xs text-slate-500 uppercase font-semibold">Unverified Claims</span>
                   <p className="text-sm font-bold text-amber-700">
-                    {formatCurrency(historyInvoice.balance_due, historyInvoice.currency)}
+                    {formatCurrency(historySummary?.unverified_paid != null ? historySummary.unverified_paid : (historyInvoice.unverified_paid || 0), historyInvoice.currency)}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-2xs text-slate-500 uppercase font-semibold">Outstanding Balance</span>
+                  <p className="text-sm font-bold text-rose-700">
+                    {formatCurrency(historySummary?.balance_due != null ? historySummary.balance_due : historyInvoice.balance_due, historyInvoice.currency)}
                   </p>
                 </div>
               </div>
 
-              {/* Transactions List */}
-              {isLoadingHistory ? (
-                <div className="py-8 text-center text-slate-500">
-                  <Loader2 className="w-6 h-6 animate-spin text-teal-600 mx-auto mb-2" />
-                  <p className="text-xs">Fetching payment history...</p>
+              {/* Status and Verification Metadata */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-white border border-slate-200 rounded-md p-3.5">
+                <div>
+                  <span className="text-slate-500 block text-2xs uppercase font-semibold">Payment Status</span>
+                  <div className="mt-1">
+                    {renderPaymentStatusBadge(historySummary?.payment_status || historyInvoice.payment_status)}
+                  </div>
                 </div>
-              ) : !historySummary || !historySummary.payments || historySummary.payments.length === 0 ? (
-                <div className="py-8 text-center">
-                  <CreditCard className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-slate-700">No payments recorded yet</p>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    This invoice is currently unpaid.
-                  </p>
+
+                <div>
+                  <span className="text-slate-500 block text-2xs uppercase font-semibold">Timing Assessment</span>
+                  <div className="mt-1">
+                    {renderTimingBadge(historySummary || historyInvoice)}
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto divide-y divide-slate-100">
-                  {historySummary.payments.map((p) => (
-                    <div key={p.id} className="pt-2 flex items-center justify-between text-xs">
-                      <div>
-                        <div className="font-semibold text-slate-800">
-                          {p.payment_date} • {p.payment_method}
+
+                <div>
+                  <span className="text-slate-500 block text-2xs uppercase font-semibold">Due Date</span>
+                  <span className="font-medium text-slate-800">
+                    {historyInvoice.due_date || 'No due date set'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-slate-500 block text-2xs uppercase font-semibold">Actual Payment Date</span>
+                  <span className="font-medium text-slate-800">
+                    {historySummary?.actual_payment_date || historyInvoice.actual_payment_date || 'None recorded'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-slate-500 block text-2xs uppercase font-semibold">Verification Source</span>
+                  <div className="mt-1">
+                    {renderVerificationSourceBadge(historySummary?.evidence_source || historyInvoice.evidence_source)}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-slate-500 block text-2xs uppercase font-semibold">Matched Reference / Discrepancy</span>
+                  <span className="font-medium text-slate-800 font-mono text-2xs">
+                    {(historySummary?.matched_reference || historyInvoice.matched_reference) ? (
+                      `Ref: ${historySummary?.matched_reference || historyInvoice.matched_reference}`
+                    ) : (historySummary?.mismatch_reason || historyInvoice.mismatch_reason) ? (
+                      <span className="text-rose-600 font-sans">{historySummary?.mismatch_reason || historyInvoice.mismatch_reason}</span>
+                    ) : (
+                      'No discrepancy noted'
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {/* Recorded Payments List */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider flex items-center justify-between">
+                  <span>Recorded Payment Transactions</span>
+                  <span className="text-slate-400 font-normal lowercase">
+                    ({historySummary?.payments?.length || 0} recorded)
+                  </span>
+                </h4>
+
+                {isLoadingHistory ? (
+                  <div className="py-6 text-center text-slate-500">
+                    <Loader2 className="w-5 h-5 animate-spin text-teal-600 mx-auto mb-1.5" />
+                    <p className="text-xs">Fetching payment details...</p>
+                  </div>
+                ) : !historySummary || !historySummary.payments || historySummary.payments.length === 0 ? (
+                  <div className="py-6 text-center bg-slate-50 rounded-md border border-slate-200">
+                    <CreditCard className="w-6 h-6 text-slate-300 mx-auto mb-1" />
+                    <p className="text-xs font-medium text-slate-700">No payments recorded yet</p>
+                    <p className="text-2xs text-slate-400 mt-0.5">
+                      This invoice is currently outstanding.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-md p-2 bg-white">
+                    {historySummary.payments.map((p) => (
+                      <div key={p.id} className="pt-2 pb-1 flex items-center justify-between text-xs">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-slate-800">
+                              {p.payment_date} • {p.payment_method}
+                            </span>
+                            <span
+                              className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                                p.verification_status === 'VERIFIED'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-purple-50 text-purple-700 border border-purple-200'
+                              }`}
+                            >
+                              {p.verification_status === 'VERIFIED' ? '✓ Bank Verified' : 'Unverified Claim'}
+                            </span>
+                          </div>
+                          <div className="text-slate-500 text-2xs mt-0.5">
+                            {p.reference ? `Ref: ${p.reference}` : 'No ref'}
+                            {p.evidence_source ? ` • Source: ${p.evidence_source}` : ''}
+                            {p.notes ? ` • Note: ${p.notes}` : ''}
+                          </div>
                         </div>
-                        <div className="text-slate-500 text-2xs">
-                          {p.reference ? `Ref: ${p.reference}` : 'No reference'}
-                          {p.notes ? ` • Note: ${p.notes}` : ''}
+                        <div className="font-bold text-sm text-emerald-700">
+                          +{formatCurrency(p.amount, historyInvoice.currency)}
                         </div>
                       </div>
-                      <div className="font-bold text-sm text-emerald-700">
-                        +{formatCurrency(p.amount, historyInvoice.currency)}
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Payment Audit Trail */}
+              {historySummary?.audit_logs && historySummary.audit_logs.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-teal-600" />
+                    <span>Payment Audit Trail ({historySummary.audit_logs.length} events)</span>
+                  </h4>
+                  <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-md p-2 bg-slate-50 divide-y divide-slate-200/60 text-2xs text-slate-600 space-y-1.5">
+                    {historySummary.audit_logs.map((log) => (
+                      <div key={log.id} className="pt-1.5 first:pt-0">
+                        <div className="flex justify-between items-center font-medium">
+                          <span className="font-semibold text-slate-800">
+                            Action: <span className="text-teal-700">{log.action}</span>
+                          </span>
+                          <span className="text-slate-400">
+                            {new Date(log.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="text-slate-500 mt-0.5">
+                          {log.new_amount != null && `Amount: $${parseFloat(log.new_amount).toFixed(2)} `}
+                          {log.new_payment_date && `• Date: ${log.new_payment_date} `}
+                          {log.verification_status && `• Status: ${log.verification_status} `}
+                          {log.notes && `• ${log.notes}`}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
+            </div>
 
-              {/* Modal footer */}
-              <div className="pt-3 flex justify-between items-center border-t border-slate-100">
+            {/* Modal footer */}
+            <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex flex-wrap justify-between items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setHistoryInvoice(null);
+                    navigate('/reconciliation');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-md transition-colors"
+                >
+                  <UploadCloud className="w-3.5 h-3.5" />
+                  <span>Upload Evidence</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setHistoryInvoice(null);
+                    navigate('/reconciliation');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-md transition-colors"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
+                  <span>View Reconciliation</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
                 {parseFloat(historyInvoice.balance_due) > 0.001 ? (
                   <button
                     onClick={() => {
@@ -1179,7 +1538,7 @@ export default function PaymentTracker() {
                       setHistoryInvoice(null);
                       handleOpenRecordModal(inv);
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-xs font-medium"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-xs font-medium shadow-2xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Record Payment</span>

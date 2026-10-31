@@ -1,0 +1,14 @@
+node_modules
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.git
+.github
+.vscode
+*.db
+backend/data/*.db
+backend/data/uploads/*
+!backend/data/uploads/.gitkeep

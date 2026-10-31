@@ -1,0 +1,60 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 1 /Kids [8 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+endobj
+6 0 obj
+<< /Title (Sample invoice) /Subject (Single-page PDF test fixture) /Producer (SampleTestFiles sample file generator) /CreationDate (D:20260101000000Z) >>
+endobj
+7 0 obj
+<<  /Length 1265 >>
+stream
+0.6 w 72 636 m 523 636 l S
+0.6 w 72 612 m 523 612 l S
+0.6 w 72 530 m 523 530 l S
+BT /F2 22 Tf 1 0 0 1 72 770 Tm (INVOICE) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 72 744 Tm (Northwind Fixtures Ltd \(fictional company\)) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 72 716 Tm (Invoice number: INV-2026-0042) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 72 701 Tm (Invoice date: 15 January 2026) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 72 686 Tm (Payment due: 14 February 2026) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 72 660 Tm (Bill to: Example Customer, 1 Sample Street, Testville) Tj ET
+BT /F3 10.5 Tf 1 0 0 1 72 620 Tm (Description                    Qty    Unit price        Amount) Tj ET
+BT /F3 10.5 Tf 1 0 0 1 72 598 Tm (Widget, standard                12          4.50         54.00) Tj ET
+BT /F3 10.5 Tf 1 0 0 1 72 580 Tm (Widget, large                    3          9.75         29.25) Tj ET
+BT /F3 10.5 Tf 1 0 0 1 72 562 Tm (Mounting bracket                 6          2.20         13.20) Tj ET
+BT /F3 10.5 Tf 1 0 0 1 72 544 Tm (Delivery                         1         15.00         15.00) Tj ET
+BT /F3 10.5 Tf 1 0 0 1 72 514 Tm (Total \(USD\)                                             111.45) Tj ET
+BT /F1 9 Tf 1 0 0 1 72 80 Tm (This is a sample document for software testing. It is not a request for payment.) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 7 0 R >>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000218 00000 n 
+0000000320 00000 n 
+0000000415 00000 n 
+0000000584 00000 n 
+0000001902 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R /Info 6 0 R >>
+startxref
+2048
+%%EOF

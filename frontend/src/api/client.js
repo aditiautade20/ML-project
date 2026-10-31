@@ -1,4 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+export const API_BASE_URL = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== '')
+  ? import.meta.env.VITE_API_URL
+  : (import.meta.env.PROD ? '' : 'http://127.0.0.1:8000');
 
 export class ApiError extends Error {
   constructor(message, status = 500, detail = null) {
@@ -40,7 +42,7 @@ export async function apiRequest(endpoint, options = {}) {
     });
   } catch (networkError) {
     throw new ApiError(
-      'Unable to connect to the InvoiceIQ backend server. Please verify that the backend is running at http://127.0.0.1:8000.',
+      `Unable to connect to the InvoiceIQ backend server (${API_BASE_URL || 'current host'}). Please verify that the backend is running.`,
       0,
       networkError.message
     );

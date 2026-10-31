@@ -9,10 +9,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import Invoices from './pages/Invoices';
-import PaymentTracker from './pages/PaymentTracker';
-import PaymentDeadlines from './pages/PaymentDeadlines';
 import Reconciliation from './pages/Reconciliation';
-import AnomalyDetection from './pages/AnomalyDetection';
 import Reports from './pages/Reports';
 
 function NotFound() {
@@ -46,12 +43,14 @@ export default function App() {
             <Route element={<Layout />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/overview" element={<Navigate to="/dashboard" replace />} />
               <Route path="/invoices" element={<Invoices />} />
-              <Route path="/payments" element={<PaymentTracker />} />
-              <Route path="/deadlines" element={<PaymentDeadlines />} />
+              <Route path="/ledger" element={<Navigate to="/reconciliation" replace />} />
               <Route path="/reconciliation" element={<Reconciliation />} />
-              <Route path="/anomalies" element={<AnomalyDetection />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/anomalies" element={<Navigate to="/reports?tab=verification" replace />} />
+              <Route path="/payments" element={<Navigate to="/invoices" replace />} />
+              <Route path="/deadlines" element={<Navigate to="/reports?tab=expenses" replace />} />
             </Route>
           </Route>
 

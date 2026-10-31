@@ -52,6 +52,7 @@ class Invoice(Base):
     user = relationship("User", back_populates="invoices")
     payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan", order_by="desc(Payment.payment_date)")
     anomaly = relationship("InvoiceAnomaly", back_populates="invoice", uselist=False, cascade="all, delete-orphan")
+    audit_logs = relationship("PaymentAuditLog", back_populates="invoice", cascade="all, delete-orphan", order_by="desc(PaymentAuditLog.timestamp)")
 
     def __repr__(self) -> str:
         return f"<Invoice(id={self.id}, number='{self.invoice_number}', vendor='{self.vendor_name}', total={self.total_amount})>"

@@ -198,7 +198,31 @@ def get_dashboard_analytics(user_id: int, db: Session) -> Dict[str, Any]:
 
     monthly_trends = list(monthly_buckets.values())
 
-    # 3. Recent Activity
+    # 3. Recent Activity & Verification Health
+    verified_invoices_count = sum(1 for inv in invoices if inv.status == "CONFIRMED")
+    needs_review_count = sum(1 for inv in invoices if inv.status == "NEEDS_REVIEW")
+    upcoming_due_dates_count = sum(1 for inv in invoices if inv.due_date and inv.due_date >= today)
+    future_due_dates = [inv.due_date for inv in invoices if inv.due_date and inv.due_date >= today]
+    nearest_due_date = min(future_due_dates) if future_due_dates else None
+
+    reconciliation_batches = (
+        db.query(ReconciliationBatch)
+        .filter(ReconciliationBatch.user_id == user_id)
+        .all()
+    )
+    reconciliation_mismatches = sum(b.mismatches for b in reconciliation_batches) + sum(b.unmatched_records for b in reconciliation_batches)
+    mismatches_count = reconciliation_mismatches + needs_review_count + anomalous_invoices_count
+
+    recon_summary = {
+        "total_batches": len(reconciliation_batches),
+        "total_records": sum(b.total_records for b in reconciliation_batches),
+        "matched_count": sum(b.exact_matches for b in reconciliation_batches),
+        "mismatch_count": sum(b.mismatches for b in reconciliation_batches),
+        "missing_count": sum(b.unmatched_records for b in reconciliation_batches),
+        "duplicate_count": 0,
+        "pending_review_count": 0,
+    }
+
     sorted_invoices = sorted(invoices, key=lambda x: (x.invoice_date, x.id), reverse=True)[:5]
     recent_invoices = []
     for inv in sorted_invoices:
@@ -211,6 +235,7 @@ def get_dashboard_analytics(user_id: int, db: Session) -> Dict[str, Any]:
             "due_date": inv.due_date,
             "total_amount": inv.total_amount,
             "currency": inv.currency,
+            "verification_status": inv.status or "CONFIRMED",
             "payment_status": status,
             "balance_due": bal,
         })
@@ -240,6 +265,11 @@ def get_dashboard_analytics(user_id: int, db: Session) -> Dict[str, Any]:
         "due_within_7_days_count": due_within_7_days_count,
         "due_within_7_days_amount": due_within_7_days_amount,
         "anomalous_invoices_count": anomalous_invoices_count,
+        "mismatches_count": mismatches_count,
+        "upcoming_due_dates_count": upcoming_due_dates_count,
+        "nearest_due_date": nearest_due_date,
+        "verified_invoices_count": verified_invoices_count,
+        "needs_review_count": needs_review_count,
         "currency": primary_currency,
         "has_multiple_currencies": has_multiple_currencies,
         "by_currency": by_currency,
@@ -247,6 +277,7 @@ def get_dashboard_analytics(user_id: int, db: Session) -> Dict[str, Any]:
         "monthly_trends": monthly_trends,
         "recent_invoices": recent_invoices,
         "recent_payments": recent_payments,
+        "reconciliation_summary": recon_summary,
     }
 
 
@@ -361,10 +392,16 @@ def get_reports_data(
             "invoice_date": inv.invoice_date,
             "due_date": inv.due_date,
             "currency": inv.currency or "USD",
+            "subtotal": inv.subtotal,
+            "tax_amount": inv.tax_amount,
             "total_amount": inv.total_amount,
             "total_paid": paid,
             "balance_due": bal,
             "payment_status": status,
+            "verification_status": inv.status or "CONFIRMED",
+            "notes": inv.notes,
+            "anomaly_status": inv.anomaly.status if inv.anomaly else None,
+            "anomaly_explanation": inv.anomaly.explanation if inv.anomaly else None,
         })
 
         # Vendor aggregation
@@ -550,6 +587,8 @@ def get_reports_data(
             "discrepancy_amount": item.discrepancy_amount,
             "currency": item.currency or "USD",
             "match_status": item.match_status,
+            "evidence_text": item.evidence_text,
+            "invoice_id": item.invoice_id,
         })
 
     return {

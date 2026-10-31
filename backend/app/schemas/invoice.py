@@ -1,23 +1,66 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 
 
+class LineItemCandidate(BaseModel):
+    item_number: Optional[str] = None
+    description: str
+    hsn_sac: Optional[str] = None
+    quantity: Optional[Decimal] = None
+    unit_price: Optional[Decimal] = None
+    line_total: Optional[Decimal] = None
+
+
 class InvoiceCandidateFields(BaseModel):
+    # Core Identification
     invoice_number: Optional[str] = None
+    invoice_type: Optional[str] = None
+
+    # Vendor / Seller Details
     vendor_name: Optional[str] = None
+    vendor_address: Optional[str] = None
+    vendor_state: Optional[str] = None
+    vendor_state_code: Optional[str] = None
+    vendor_gstin: Optional[str] = None
+
+    # Customer / Buyer Details
     customer_name: Optional[str] = None
+    customer_billing_address: Optional[str] = None
+    customer_shipping_address: Optional[str] = None
+    customer_state: Optional[str] = None
+    customer_state_code: Optional[str] = None
+    customer_gstin: Optional[str] = None
+    place_of_supply: Optional[str] = None
+
+    # Dates & Terms
     invoice_date: Optional[date] = None
     due_date: Optional[date] = None
+    payment_terms: Optional[str] = None
+    po_number: Optional[str] = None
+    reference_number: Optional[str] = None
+    payment_status: Optional[str] = None
+
+    # Financial Breakdown
     subtotal: Optional[Decimal] = None
+    discounts: Optional[Decimal] = None
+    taxable_amount: Optional[Decimal] = None
+    tax_rate: Optional[str] = None
     tax_amount: Optional[Decimal] = None
     cgst: Optional[Decimal] = None
     sgst: Optional[Decimal] = None
     igst: Optional[Decimal] = None
+    other_charges: Optional[Decimal] = None
     total_amount: Optional[Decimal] = None
+    calculated_total: Optional[Decimal] = None
     currency: Optional[str] = "USD"
-    payment_status: Optional[str] = None
+
+    # Line Items
+    line_items: List[LineItemCandidate] = Field(default_factory=list)
+
+    # Raw Text & Confidence
+    raw_text: Optional[str] = None
     notes: Optional[str] = None
     field_confidence: Dict[str, str] = Field(default_factory=dict)
 
@@ -28,6 +71,7 @@ class InvoiceUploadResponse(BaseModel):
     file_content_type: str
     file_size_bytes: int
     candidate_fields: InvoiceCandidateFields
+    raw_text: Optional[str] = None
     extraction_notes: List[str] = Field(default_factory=list)
     validation_warnings: List[str] = Field(default_factory=list)
 
@@ -104,11 +148,22 @@ class InvoiceResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # Calculated Financial Properties (Stage 4)
+    # Calculated Financial Properties (Stage 4 & Stage 8)
     total_paid: Decimal = Decimal("0.00")
     amount_paid: Decimal = Decimal("0.00")
+    verified_paid: Decimal = Decimal("0.00")
+    unverified_paid: Decimal = Decimal("0.00")
     balance_due: Decimal = Decimal("0.00")
     payment_status: str = "UNPAID"
+    granular_status: Optional[str] = None
+    actual_payment_date: Optional[date] = None
+    days_late: Optional[int] = None
+    days_overdue: Optional[int] = None
+    days_remaining: Optional[int] = None
+    evidence_source: Optional[str] = None
+    matched_reference: Optional[str] = None
+    mismatch_reason: Optional[str] = None
+    reconciliation_status: Optional[str] = None
 
     # ML Anomaly Screening Properties (Stage 5)
     anomaly_status: Optional[str] = None

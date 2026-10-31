@@ -1,0 +1,7 @@
+transaction_date,description,debit_amount,credit_amount,reference_id,currency
+2026-10-06,Direct Debit - FastTrack Courier Freight Settlement,400.00,,WIRE-00391,USD
+2026-10-14,Wire Transfer to FastTrack Courier Balance,450.00,,WIRE-00412,USD
+2026-10-24,Online Payment Apex Cloud Hosting INV-DEMO-001,450.00,,ACH-APEX-001,USD
+2026-10-25,Merchant POS - Office Snacks and Coffee Club,85.50,,POS-882910,USD
+2026-10-22,Supplier Payment - Precision Hardware Tools INV-DEMO-005,175.00,,CHQ-44912,USD
+2026-10-22,Supplier Payment - Precision Hardware Tools INV-DEMO-005,175.00,,CHQ-44912,USD

@@ -22,7 +22,10 @@ from app.schemas.invoice import (
     InvoiceDeadlinesSummaryResponse,
 )
 from app.services.extractor import process_invoice_file
-from app.services.payment_service import calculate_invoice_financials
+from app.services.payment_service import (
+    calculate_invoice_financials,
+    calculate_detailed_invoice_payment_info,
+)
 from app.utils.security import get_current_user
 
 router = APIRouter(prefix="/api/invoices", tags=["Invoices"])
@@ -305,20 +308,56 @@ def list_invoices(
     if payment_status and payment_status.strip():
         req_st = payment_status.strip().upper()
         status_map = {
-            "PAID": ["PAID"],
-            "OVERDUE": ["OVERDUE"],
-            "DUE_SOON": ["DUE_SOON"],
-            "DUE SOON": ["DUE_SOON"],
-            "PARTIAL": ["PARTIAL", "PARTIALLY_PAID"],
-            "PARTIALLY PAID": ["PARTIAL", "PARTIALLY_PAID"],
+            "PAID": ["PAID", "PAID_ON_TIME", "PAID_LATE"],
+            "PAID_ON_TIME": ["PAID_ON_TIME"],
+            "PAID ON TIME": ["PAID_ON_TIME"],
+            "PAID_LATE": ["PAID_LATE"],
+            "PAID LATE": ["PAID_LATE"],
+            "OVERDUE": ["OVERDUE", "OVERDUE_UNCONFIRMED", "PARTIALLY_PAID_OVERDUE"],
+            "OVERDUE_UNCONFIRMED": ["OVERDUE_UNCONFIRMED", "OVERDUE"],
+            "OVERDUE — PAYMENT NOT CONFIRMED": ["OVERDUE_UNCONFIRMED", "OVERDUE"],
+            "OVERDUE - PAYMENT NOT CONFIRMED": ["OVERDUE_UNCONFIRMED", "OVERDUE"],
+            "PARTIAL": ["PARTIAL", "PARTIALLY_PAID", "PARTIALLY_PAID_OVERDUE"],
+            "PARTIALLY PAID": ["PARTIAL", "PARTIALLY_PAID", "PARTIALLY_PAID_OVERDUE"],
             "PARTIALLY_PAID": ["PARTIAL", "PARTIALLY_PAID"],
-            "UNPAID": ["UNPAID"],
+            "PARTIALLY_PAID_OVERDUE": ["PARTIALLY_PAID_OVERDUE"],
+            "PARTIALLY PAID — OVERDUE": ["PARTIALLY_PAID_OVERDUE"],
+            "PARTIALLY PAID - OVERDUE": ["PARTIALLY_PAID_OVERDUE"],
+            "UNPAID": ["UNPAID", "UPCOMING_UNPAID"],
+            "UPCOMING": ["UPCOMING_UNPAID", "DUE_SOON"],
+            "UPCOMING / UNPAID": ["UPCOMING_UNPAID", "UNPAID"],
+            "UPCOMING/UNPAID": ["UPCOMING_UNPAID", "UNPAID"],
+            "UPCOMING_UNPAID": ["UPCOMING_UNPAID", "UNPAID"],
+            "PAYMENT_UNVERIFIED": ["PAYMENT_UNVERIFIED"],
+            "PAYMENT UNVERIFIED": ["PAYMENT_UNVERIFIED"],
+            "UNVERIFIED": ["PAYMENT_UNVERIFIED"],
+            "NEEDS_REVIEW": ["NEEDS_REVIEW"],
+            "NEEDS REVIEW": ["NEEDS_REVIEW"],
+            "DUE_SOON": ["DUE_SOON", "UPCOMING_UNPAID"],
+            "DUE SOON": ["DUE_SOON", "UPCOMING_UNPAID"],
+            "MISMATCH": ["MISMATCH"],
+            "MISMATCHES": ["MISMATCH"],
+            "VERIFIED": ["CONFIRMED"],
+            "CONFIRMED": ["CONFIRMED"],
         }
         allowed = status_map.get(req_st, [req_st])
         matched_invoices = []
         for inv in all_invoices:
             _, _, st = calculate_invoice_financials(inv, today)
-            if st in allowed:
+            is_match = st in allowed
+            if not is_match and req_st in ["DUE_SOON", "DUE SOON"]:
+                if inv.due_date and today <= inv.due_date <= (today + timedelta(days=7)) and st in ["UPCOMING_UNPAID", "UNPAID"]:
+                    is_match = True
+            elif not is_match and req_st in ["NEEDS_REVIEW", "NEEDS REVIEW"]:
+                if inv.status == "NEEDS_REVIEW" or any(p.mismatch_reason for p in (inv.payments or [])):
+                    is_match = True
+            elif not is_match and req_st in ["MISMATCH", "MISMATCHES"]:
+                if (inv.anomaly and inv.anomaly.is_anomaly) or (inv.status == "NEEDS_REVIEW") or any(p.mismatch_reason for p in (inv.payments or [])):
+                    is_match = True
+            elif not is_match and req_st in ["CONFIRMED", "VERIFIED"]:
+                if inv.status == "CONFIRMED":
+                    is_match = True
+            if is_match:
                 matched_invoices.append(inv)
         total = len(matched_invoices)
         total_pages = (total + per_page - 1) // per_page if total > 0 else 1
@@ -608,8 +647,9 @@ def get_invoice_file(
 
 
 def _build_invoice_response(invoice: Invoice, ref_date: Optional[date] = None) -> InvoiceResponse:
-    """Helper to construct safe InvoiceResponse including dynamically calculated financial properties and ML screening."""
-    total_paid, balance_due, payment_status = calculate_invoice_financials(invoice, ref_date)
+    """Helper to construct safe InvoiceResponse including dynamically calculated financial properties, audit evidence, and ML screening."""
+    detail = calculate_detailed_invoice_payment_info(invoice, ref_date)
+    legacy_status = calculate_invoice_financials(invoice, ref_date)[2]
     anomaly_status = invoice.anomaly.status if invoice.anomaly else None
     anomaly_explanation = invoice.anomaly.explanation if invoice.anomaly else None
 
@@ -632,10 +672,21 @@ def _build_invoice_response(invoice: Invoice, ref_date: Optional[date] = None) -
         notes=invoice.notes,
         created_at=invoice.created_at,
         updated_at=invoice.updated_at,
-        total_paid=total_paid,
-        amount_paid=total_paid,
-        balance_due=balance_due,
-        payment_status=payment_status,
+        total_paid=detail["total_paid"],
+        amount_paid=detail["total_paid"],
+        verified_paid=detail["verified_paid"],
+        unverified_paid=detail["unverified_paid"],
+        balance_due=detail["balance_due"],
+        payment_status=legacy_status,
+        granular_status=detail["payment_status"],
+        actual_payment_date=detail["actual_payment_date"],
+        days_late=detail["days_late"],
+        days_overdue=detail["days_overdue"],
+        days_remaining=detail["days_remaining"],
+        evidence_source=detail["evidence_source"],
+        matched_reference=detail["matched_reference"],
+        mismatch_reason=detail["mismatch_reason"],
+        reconciliation_status=invoice.status,
         anomaly_status=anomaly_status,
         anomaly_explanation=anomaly_explanation,
     )

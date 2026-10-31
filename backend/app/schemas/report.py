@@ -23,6 +23,7 @@ class RecentInvoiceItem(BaseModel):
     currency: str
     payment_status: str
     balance_due: Decimal
+    verification_status: Optional[str] = "CONFIRMED"
 
 
 class RecentPaymentItem(BaseModel):
@@ -37,6 +38,16 @@ class RecentPaymentItem(BaseModel):
     reference: Optional[str] = None
 
 
+class ReconciliationSummaryItem(BaseModel):
+    total_batches: int = 0
+    total_records: int = 0
+    matched_count: int = 0
+    mismatch_count: int = 0
+    missing_count: int = 0
+    duplicate_count: int = 0
+    pending_review_count: int = 0
+
+
 class DashboardAnalyticsResponse(BaseModel):
     total_invoices_count: int
     total_invoiced_amount: Decimal
@@ -47,6 +58,11 @@ class DashboardAnalyticsResponse(BaseModel):
     due_within_7_days_count: int
     due_within_7_days_amount: Decimal
     anomalous_invoices_count: int
+    mismatches_count: int = 0
+    upcoming_due_dates_count: int = 0
+    verified_invoices_count: int = 0
+    needs_review_count: int = 0
+    nearest_due_date: Optional[date] = None
     currency: str = "USD"
     has_multiple_currencies: bool = False
     by_currency: Optional[dict] = None
@@ -54,6 +70,7 @@ class DashboardAnalyticsResponse(BaseModel):
     monthly_trends: List[MonthlyTrendItem]
     recent_invoices: List[RecentInvoiceItem]
     recent_payments: List[RecentPaymentItem]
+    reconciliation_summary: Optional[ReconciliationSummaryItem] = None
 
 
 class VendorSummaryItem(BaseModel):
@@ -72,10 +89,16 @@ class ReportInvoiceItem(BaseModel):
     invoice_date: date
     due_date: Optional[date] = None
     currency: str = "USD"
+    subtotal: Optional[Decimal] = None
+    tax_amount: Optional[Decimal] = None
     total_amount: Decimal
     total_paid: Decimal
     balance_due: Decimal
     payment_status: str
+    verification_status: Optional[str] = "CONFIRMED"
+    notes: Optional[str] = None
+    anomaly_status: Optional[str] = None
+    anomaly_explanation: Optional[str] = None
 
 
 class ReportPaymentItem(BaseModel):
@@ -112,6 +135,8 @@ class ReportReconciliationItem(BaseModel):
     discrepancy_amount: Optional[Decimal] = None
     currency: str = "USD"
     match_status: str
+    evidence_text: Optional[str] = None
+    invoice_id: Optional[int] = None
 
 
 class ReportSummary(BaseModel):

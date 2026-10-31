@@ -11,6 +11,9 @@ class PaymentCreateRequest(BaseModel):
     payment_method: str = Field(default="Bank Transfer", min_length=1, max_length=50)
     reference: Optional[str] = Field(None, max_length=100, description="Transaction or check reference number")
     notes: Optional[str] = Field(None, max_length=1000)
+    verification_status: Optional[str] = Field("UNVERIFIED", max_length=50, description="Verification status: UNVERIFIED, VERIFIED, FLAGGED")
+    evidence_source: Optional[str] = Field("MANUAL_ENTRY", max_length=100, description="Evidence source: MANUAL_ENTRY, BANK_STATEMENT, GENERAL_LEDGER, RECEIPT")
+    matched_reference: Optional[str] = Field(None, max_length=100)
 
     @field_validator("payment_method")
     @classmethod
@@ -27,6 +30,10 @@ class PaymentUpdateRequest(BaseModel):
     payment_method: Optional[str] = Field(None, min_length=1, max_length=50)
     reference: Optional[str] = Field(None, max_length=100)
     notes: Optional[str] = Field(None, max_length=1000)
+    verification_status: Optional[str] = Field(None, max_length=50)
+    evidence_source: Optional[str] = Field(None, max_length=100)
+    matched_reference: Optional[str] = Field(None, max_length=100)
+    mismatch_reason: Optional[str] = Field(None, max_length=1000)
 
 
 class PaymentResponse(BaseModel):
@@ -38,6 +45,10 @@ class PaymentResponse(BaseModel):
     payment_method: str
     reference: Optional[str]
     notes: Optional[str]
+    verification_status: str = "UNVERIFIED"
+    evidence_source: str = "MANUAL_ENTRY"
+    matched_reference: Optional[str] = None
+    mismatch_reason: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -45,6 +56,25 @@ class PaymentResponse(BaseModel):
     invoice_number: Optional[str] = None
     vendor_name: Optional[str] = None
     currency: Optional[str] = "USD"
+
+    model_config = {"from_attributes": True}
+
+
+class PaymentAuditLogResponse(BaseModel):
+    id: int
+    payment_id: Optional[int] = None
+    invoice_id: int
+    user_id: int
+    action: str
+    previous_amount: Optional[Decimal] = None
+    new_amount: Optional[Decimal] = None
+    previous_payment_date: Optional[date] = None
+    new_payment_date: Optional[date] = None
+    previous_status: Optional[str] = None
+    new_status: Optional[str] = None
+    evidence_source: Optional[str] = None
+    notes: Optional[str] = None
+    timestamp: datetime
 
     model_config = {"from_attributes": True}
 
@@ -65,8 +95,18 @@ class InvoicePaymentSummaryResponse(BaseModel):
     currency: str
     invoice_total: Decimal
     total_paid: Decimal
+    verified_paid: Decimal = Decimal("0.00")
+    unverified_paid: Decimal = Decimal("0.00")
     amount_paid: Decimal = Decimal("0.00")
     balance_due: Decimal
     payment_status: str
     due_date: Optional[date]
+    actual_payment_date: Optional[date] = None
+    days_late: Optional[int] = None
+    days_overdue: Optional[int] = None
+    days_remaining: Optional[int] = None
+    evidence_source: Optional[str] = None
+    matched_reference: Optional[str] = None
+    mismatch_reason: Optional[str] = None
     payments: List[PaymentResponse]
+    audit_logs: List[PaymentAuditLogResponse] = []

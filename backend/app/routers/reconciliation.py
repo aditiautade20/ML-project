@@ -23,7 +23,7 @@ from sqlalchemy import desc
 
 from app.database import get_db
 from app.models.invoice import Invoice
-from app.models.payment import Payment
+from app.models.payment import Payment, PaymentAuditLog
 from app.models.reconciliation import ReconciliationBatch, ReconciliationItem
 from app.models.user import User
 from app.schemas.reconciliation import (
@@ -467,9 +467,26 @@ def confirm_and_record_bank_payment(
         payment_method=req.payment_method,
         reference=item.record_identifier,
         notes=req.notes or f"Reconciled from bank statement '{item.batch.bank_filename or 'Bank Statement'}'",
+        verification_status="VERIFIED",
+        evidence_source="BANK_STATEMENT",
+        matched_reference=item.record_identifier,
     )
     db.add(new_payment)
     db.flush()
+
+    # Create PaymentAuditLog record
+    audit_log = PaymentAuditLog(
+        payment_id=new_payment.id,
+        invoice_id=invoice.id,
+        user_id=current_user.id,
+        action="VERIFIED",
+        new_amount=payment_amount,
+        new_payment_date=pay_date,
+        verification_status="VERIFIED",
+        evidence_source="BANK_STATEMENT",
+        notes=f"Recorded and verified from bank statement match ({item.batch.bank_filename or 'Bank Statement'})",
+    )
+    db.add(audit_log)
 
     # Update item status
     item.payment_id = new_payment.id

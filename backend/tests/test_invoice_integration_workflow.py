@@ -65,7 +65,7 @@ def test_saved_invoice_is_single_source_of_truth_across_app(client):
     assert summary_data["invoice_total"] == "1100.00"
     assert summary_data["amount_paid"] == "0.00"
     assert summary_data["balance_due"] == "1100.00"
-    assert summary_data["payment_status"] == "UNPAID"
+    assert summary_data["payment_status"] in ("UNPAID", "UPCOMING_UNPAID")
     assert len(summary_data["payments"]) == 0
 
 

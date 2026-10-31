@@ -1,0 +1,7 @@
+invoice_number,vendor_name,invoice_date,subtotal,tax_amount,total_amount,currency
+INV-DEMO-001,Apex Cloud Infrastructure,2026-10-21,400.00,50.00,450.00,USD
+INV-DEMO-002,Acme Office Supplies,2026-10-16,590.00,60.00,650.00,USD
+INV-DEMO-005,Precision Hardware Tools,2026-10-18,160.00,15.00,175.00,USD
+INV-DEMO-005,Precision Hardware Tools,2026-10-18,160.00,15.00,175.00,USD
+INV-DEMO-999,Zenith Global Marketing,2026-10-10,1100.00,100.00,1200.00,USD
+INV-DEMO-004,Global Telecom,2026-09-11,290.00,30.00,320.00,USD

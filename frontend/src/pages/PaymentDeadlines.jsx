@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   CalendarClock,
   AlertCircle,
@@ -14,6 +15,8 @@ import {
   Building,
   ArrowRight,
   Filter,
+  UploadCloud,
+  Eye,
 } from 'lucide-react';
 import { getDeadlinesSummary, recordPayment } from '../api/payments';
 
@@ -78,28 +81,68 @@ function getRelativeDeadlineInfo(dueDateStr) {
 }
 
 function renderStatusBadge(status) {
-  switch (status) {
-    case 'OVERDUE':
+  const s = (status || 'UNPAID').toUpperCase();
+  switch (s) {
+    case 'PAID_ON_TIME':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">
-          Overdue
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          Paid on Time
         </span>
       );
+    case 'PAID_LATE':
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-300">
+          Paid Late
+        </span>
+      );
+    case 'PARTIALLY_PAID_OVERDUE':
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-300">
+          Partially Paid — Overdue
+        </span>
+      );
+    case 'PARTIALLY_PAID':
     case 'PARTIAL':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
           Partially Paid
+        </span>
+      );
+    case 'OVERDUE_UNCONFIRMED':
+    case 'OVERDUE':
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+          Overdue — Payment Not Confirmed
+        </span>
+      );
+    case 'UPCOMING_UNPAID':
+    case 'DUE_SOON':
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+          Upcoming / Unpaid
+        </span>
+      );
+    case 'PAYMENT_UNVERIFIED':
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+          Payment Unverified
+        </span>
+      );
+    case 'NEEDS_REVIEW':
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+          Needs Review
         </span>
       );
     case 'PAID':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-200">
           Paid
         </span>
       );
     default:
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
           Unpaid
         </span>
       );
@@ -107,6 +150,7 @@ function renderStatusBadge(status) {
 }
 
 export default function PaymentDeadlines() {
+  const navigate = useNavigate();
   const [data, setData] = useState({
     overdue: [],
     due_today: [],
@@ -127,6 +171,9 @@ export default function PaymentDeadlines() {
   // Active Tab: 'all' | 'overdue' | 'today' | '7days' | 'later'
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Details Modal State
+  const [detailsInvoice, setDetailsInvoice] = useState(null);
 
   // Quick Record Payment Modal
   const [payingInvoice, setPayingInvoice] = useState(null);
@@ -271,8 +318,35 @@ export default function PaymentDeadlines() {
             Payment Deadlines
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Track upcoming due dates, prevent overdue penalties, and record direct settlements.
+            Track upcoming due dates, prevent overdue penalties, and record payment settlements.
           </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => navigate('/reconciliation')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-md transition-colors shadow-2xs"
+            title="Import bank statements or ledgers to verify payments"
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>Upload Payment Evidence</span>
+          </button>
+          <button
+            onClick={() => navigate('/reconciliation')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-md transition-colors"
+            title="View matched and mismatched bank transactions"
+          >
+            <CheckCircle2 className="w-4 h-4 text-slate-500" />
+            <span>View Reconciliation</span>
+          </button>
+          <button
+            onClick={() => navigate('/payments')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-md transition-colors shadow-2xs"
+            title="Open comprehensive Payment Tracker register"
+          >
+            <ArrowRight className="w-4 h-4" />
+            <span>Payment Tracker</span>
+          </button>
         </div>
       </div>
 
@@ -549,7 +623,7 @@ export default function PaymentDeadlines() {
 
                       {/* Status */}
                       <td className="px-6 py-4 text-center whitespace-nowrap">
-                        {renderStatusBadge(inv.payment_status)}
+                        {renderStatusBadge(inv.granular_status || inv.payment_status)}
                       </td>
 
                       {/* Review & Eligibility */}
@@ -577,20 +651,31 @@ export default function PaymentDeadlines() {
 
                       {/* Action */}
                       <td className="px-6 py-4 text-right whitespace-nowrap">
-                        {parseFloat(inv.balance_due) > 0 ? (
+                        <div className="flex items-center justify-end gap-2">
+                          {parseFloat(inv.balance_due) > 0.001 ? (
+                            <button
+                              onClick={() => handleOpenPayment(inv)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded text-xs font-medium transition-colors shadow-2xs"
+                              title="Record payment settlement for this invoice"
+                            >
+                              <DollarSign className="w-3.5 h-3.5" />
+                              <span>Record Payment</span>
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded border border-emerald-200">
+                              ✓ Settled
+                            </span>
+                          )}
+
                           <button
-                            onClick={() => handleOpenPayment(inv)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded text-xs font-medium transition-colors shadow-xs"
-                            title="Record Payment for this invoice"
+                            onClick={() => setDetailsInvoice(inv)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded transition-colors"
+                            title="View invoice information, due date, and verification status"
                           >
-                            <CreditCard className="w-3.5 h-3.5" />
-                            <span>Pay</span>
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>View Details</span>
                           </button>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded border border-emerald-200">
-                            ✓ Settled
-                          </span>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -648,6 +733,10 @@ export default function PaymentDeadlines() {
                   <strong>Notice:</strong> This invoice has validation discrepancies and is marked as <em>Needs Review</em>. Payment recording is permitted, but please verify figures before recording settlement.
                 </div>
               )}
+
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 leading-relaxed">
+                <strong>Audit Notice:</strong> Manual payment entries default to <em>Unverified Claim</em> status. To officially verify this payment and clear it against bank debit records, upload a bank statement in the Reconciliation Centre.
+              </div>
 
               {/* Invoice Summary Box */}
               <div className="p-3 bg-slate-50 rounded-md border border-slate-200 text-xs space-y-1.5">
@@ -781,6 +870,160 @@ export default function PaymentDeadlines() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* VIEW INVOICE DETAILS & VERIFICATION MODAL                                */}
+      {/* ========================================================================= */}
+      {detailsInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-xl w-full flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-700">
+                  <FileText className="w-4 h-4 text-teal-700" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    Invoice #{detailsInvoice.invoice_number}
+                  </h3>
+                  <p className="text-xs text-slate-500">{detailsInvoice.vendor_name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDetailsInvoice(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-md hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Financial Breakdown Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-md text-center">
+                <div>
+                  <span className="text-2xs text-slate-500 uppercase font-semibold">Total Amount</span>
+                  <p className="text-sm font-bold text-slate-900">
+                    {formatCurrency(detailsInvoice.total_amount, detailsInvoice.currency)}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-2xs text-slate-500 uppercase font-semibold">Verified Paid</span>
+                  <p className="text-sm font-bold text-emerald-700">
+                    {formatCurrency(detailsInvoice.verified_paid || detailsInvoice.total_paid || 0, detailsInvoice.currency)}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-2xs text-slate-500 uppercase font-semibold">Unverified Claims</span>
+                  <p className="text-sm font-bold text-amber-700">
+                    {formatCurrency(detailsInvoice.unverified_paid || 0, detailsInvoice.currency)}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-2xs text-slate-500 uppercase font-semibold">Outstanding Balance</span>
+                  <p className="text-sm font-bold text-rose-700">
+                    {formatCurrency(detailsInvoice.balance_due, detailsInvoice.currency)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Status and Timing Details */}
+              <div className="space-y-2 text-xs border border-slate-200 rounded-md p-3.5 bg-white">
+                <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span className="text-slate-500">Current Payment Status:</span>
+                  <div>{renderStatusBadge(detailsInvoice.payment_status)}</div>
+                </div>
+                <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span className="text-slate-500">Invoice Date:</span>
+                  <span className="font-medium text-slate-800">{detailsInvoice.invoice_date || '—'}</span>
+                </div>
+                <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span className="text-slate-500">Due Date:</span>
+                  <span className="font-medium text-slate-800">{detailsInvoice.due_date || '—'}</span>
+                </div>
+                <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span className="text-slate-500">Timing Assessment:</span>
+                  <span className="font-medium text-slate-800">
+                    {detailsInvoice.days_late != null && detailsInvoice.days_late > 0
+                      ? `Paid ${detailsInvoice.days_late} day${detailsInvoice.days_late === 1 ? '' : 's'} late`
+                      : detailsInvoice.days_overdue != null && detailsInvoice.days_overdue > 0
+                      ? `${detailsInvoice.days_overdue} day${detailsInvoice.days_overdue === 1 ? '' : 's'} overdue`
+                      : detailsInvoice.days_remaining != null
+                      ? `Due in ${detailsInvoice.days_remaining} day${detailsInvoice.days_remaining === 1 ? '' : 's'}`
+                      : 'On schedule'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span className="text-slate-500">Verification Source:</span>
+                  <span className="font-medium text-slate-800">
+                    {detailsInvoice.evidence_source || 'Evidence Unavailable (Manual Claim)'}
+                  </span>
+                </div>
+                {detailsInvoice.matched_reference && (
+                  <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                    <span className="text-slate-500">Matched Bank / Ledger Ref:</span>
+                    <span className="font-mono font-medium text-slate-800">{detailsInvoice.matched_reference}</span>
+                  </div>
+                )}
+                {detailsInvoice.mismatch_reason && (
+                  <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                    <span className="text-slate-500">Mismatch Reason:</span>
+                    <span className="text-rose-700 font-medium">{detailsInvoice.mismatch_reason}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons in Modal */}
+              <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const inv = detailsInvoice;
+                      setDetailsInvoice(null);
+                      navigate('/reconciliation');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-md transition-colors"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    <span>Upload Evidence</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setDetailsInvoice(null);
+                      navigate('/reconciliation');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
+                    <span>View Reconciliation</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {parseFloat(detailsInvoice.balance_due) > 0.001 && (
+                    <button
+                      onClick={() => {
+                        const inv = detailsInvoice;
+                        setDetailsInvoice(null);
+                        handleOpenPayment(inv);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-xs font-medium transition-colors shadow-2xs"
+                    >
+                      <DollarSign className="w-3.5 h-3.5" />
+                      <span>Record Payment</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setDetailsInvoice(null)}
+                    className="px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-md"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

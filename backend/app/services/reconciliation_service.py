@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 
 from app.models.invoice import Invoice
-from app.models.payment import Payment
+from app.models.payment import Payment, PaymentAuditLog
 from app.models.reconciliation import ReconciliationBatch, ReconciliationItem
 from app.services.payment_service import calculate_invoice_financials
 from app.services.reconciliation_parser import (
@@ -408,26 +408,42 @@ def run_bank_reconciliation(
         raw_ref = str(row.get(ref_col, "")).strip() if ref_col else ""
         raw_cur = str(row.get(cur_col, "USD")).strip().upper() if cur_col else "USD"
 
-        # Determine transaction debit amount
+        # Determine transaction debit or credit amount
         debit_val = None
+        credit_val = None
         if deb_col and row.get(deb_col):
             debit_val = parse_numeric_decimal(row.get(deb_col))
-        elif amt_col and row.get(amt_col):
-            parsed_raw = parse_numeric_decimal(row.get(amt_col))
-            # If negative or credit is 0/empty, treat as debit
-            if parsed_raw is not None and parsed_raw < 0:
-                debit_val = abs(parsed_raw)
-            elif cre_col and not row.get(cre_col):
-                debit_val = parsed_raw
+        if cre_col and row.get(cre_col):
+            credit_val = parse_numeric_decimal(row.get(cre_col))
 
-        # If transaction is an incoming deposit (Credit) and not a debit:
-        if debit_val is None or debit_val <= Decimal("0.00"):
-            # Skip or record as non-AP credit
+        if amt_col and row.get(amt_col):
+            parsed_raw = parse_numeric_decimal(row.get(amt_col))
+            if parsed_raw is not None:
+                if parsed_raw < 0:
+                    debit_val = abs(parsed_raw)
+                elif parsed_raw > 0 and credit_val is None and debit_val is None:
+                    if deb_col == amt_col:
+                        debit_val = parsed_raw
+                    else:
+                        credit_val = parsed_raw
+
+        # Sanitize zero values
+        if debit_val is not None and debit_val <= Decimal("0.00"):
+            debit_val = None
+        if credit_val is not None and credit_val <= Decimal("0.00"):
+            credit_val = None
+
+        if debit_val is None and credit_val is None:
             continue
+
+        is_credit = credit_val is not None and (debit_val is None or credit_val > (debit_val or Decimal("0.00")))
+        txn_amount = credit_val if is_credit else debit_val
+        txn_label = "credit" if is_credit else "debit"
 
         record_id = raw_ref if raw_ref else f"BankTxn-{idx:04d}"
 
         # Strategy A: Check match against existing recorded Payments
+        # For supplier invoices (AP), match outgoing debits. For customer invoices (AR), match incoming credits.
         payment_match = None
         for p in payments:
             if p.id not in matched_payment_ids:
@@ -436,20 +452,54 @@ def run_bank_reconciliation(
                     payment_match = p
                     break
                 # Check amount match within tolerance
-                if abs(Decimal(str(p.amount)) - debit_val) <= amount_tolerance:
+                if abs(Decimal(str(p.amount)) - txn_amount) <= amount_tolerance:
                     # Check description similarity or invoice match
-                    if p.invoice and (
-                        vendor_names_or_tokens_match(p.invoice.vendor_name, raw_desc)
-                        or (p.invoice.invoice_number and clean_alphanumeric(p.invoice.invoice_number) in clean_alphanumeric(raw_desc))
-                    ):
-                        payment_match = p
-                        break
+                    inv_target = p.invoice
+                    if inv_target:
+                        counterparty_matches = False
+                        if is_credit and inv_target.customer_name:
+                            counterparty_matches = vendor_names_or_tokens_match(inv_target.customer_name, raw_desc)
+                        elif not is_credit and inv_target.vendor_name:
+                            counterparty_matches = vendor_names_or_tokens_match(inv_target.vendor_name, raw_desc)
+                        else:
+                            counterparty_matches = (
+                                vendor_names_or_tokens_match(inv_target.vendor_name, raw_desc)
+                                or (inv_target.customer_name and vendor_names_or_tokens_match(inv_target.customer_name, raw_desc))
+                            )
+
+                        number_matches = (
+                            inv_target.invoice_number
+                            and clean_alphanumeric(inv_target.invoice_number) in clean_alphanumeric(raw_desc)
+                        )
+                        if counterparty_matches or number_matches:
+                            payment_match = p
+                            break
 
         if payment_match:
             matched_payment_ids.add(payment_match.id)
             inv = payment_match.invoice
             exp_amt = Decimal(str(payment_match.amount))
-            diff = debit_val - exp_amt
+            diff = txn_amount - exp_amt
+
+            # Update payment verification status to VERIFIED backed by bank statement
+            if payment_match.verification_status != "VERIFIED":
+                payment_match.verification_status = "VERIFIED"
+                payment_match.evidence_source = "BANK_STATEMENT"
+                payment_match.matched_reference = raw_ref or record_id
+                audit_log = PaymentAuditLog(
+                    payment_id=payment_match.id,
+                    invoice_id=inv.id if inv else None,
+                    user_id=user_id,
+                    action="VERIFIED",
+                    previous_amount=payment_match.amount,
+                    new_amount=payment_match.amount,
+                    previous_payment_date=payment_match.payment_date,
+                    new_payment_date=payment_match.payment_date,
+                    verification_status="VERIFIED",
+                    evidence_source="BANK_STATEMENT",
+                    notes=f"Payment verified via bank statement {txn_label} of {raw_cur} {txn_amount:.2f} (Ref: {raw_ref or record_id})",
+                )
+                db.add(audit_log)
 
             item = ReconciliationItem(
                 batch_id=batch.id,
@@ -459,14 +509,14 @@ def run_bank_reconciliation(
                 item_type="BANK",
                 match_status="EXACT_MATCH",
                 record_identifier=record_id,
-                vendor_or_counterparty=inv.vendor_name if inv else raw_desc,
+                vendor_or_counterparty=(inv.customer_name if is_credit and inv and inv.customer_name else (inv.vendor_name if inv else raw_desc)),
                 transaction_date=raw_date_str,
                 expected_value=f"{raw_cur} {exp_amt:.2f}",
-                actual_value=f"{raw_cur} {debit_val:.2f}",
+                actual_value=f"{raw_cur} {txn_amount:.2f}",
                 discrepancy_amount=diff,
                 currency=raw_cur,
                 evidence_text=(
-                    f"Cleared payment confirmed: Bank debit matches recorded payment of {raw_cur} {exp_amt:.2f} "
+                    f"Cleared payment confirmed: Bank {txn_label} matches recorded payment of {raw_cur} {exp_amt:.2f} "
                     f"against Invoice #{inv.invoice_number if inv else 'N/A'} (Ref: {payment_match.reference or 'None'})."
                 ),
                 action_recommendation="No action required. Payment cleared in bank.",
@@ -482,18 +532,30 @@ def run_bank_reconciliation(
         for inv in invoices:
             total_paid, bal_due, p_status = calculate_invoice_financials(inv)
             if bal_due > Decimal("0.00"):
-                if abs(bal_due - debit_val) <= amount_tolerance or abs(Decimal(str(inv.total_amount)) - debit_val) <= amount_tolerance:
-                    if (
-                        vendor_names_or_tokens_match(inv.vendor_name, raw_desc)
-                        or (inv.invoice_number and clean_alphanumeric(inv.invoice_number) in clean_alphanumeric(raw_desc))
+                if abs(bal_due - txn_amount) <= amount_tolerance or abs(Decimal(str(inv.total_amount)) - txn_amount) <= amount_tolerance:
+                    counterparty_match = False
+                    if is_credit and inv.customer_name:
+                        counterparty_match = vendor_names_or_tokens_match(inv.customer_name, raw_desc)
+                    elif not is_credit and inv.vendor_name:
+                        counterparty_match = vendor_names_or_tokens_match(inv.vendor_name, raw_desc)
+                    else:
+                        counterparty_match = (
+                            vendor_names_or_tokens_match(inv.vendor_name, raw_desc)
+                            or (inv.customer_name and vendor_names_or_tokens_match(inv.customer_name, raw_desc))
+                        )
+
+                    num_match = (
+                        (inv.invoice_number and clean_alphanumeric(inv.invoice_number) in clean_alphanumeric(raw_desc))
                         or (raw_ref and clean_alphanumeric(inv.invoice_number) in clean_alphanumeric(raw_ref))
-                    ):
+                    )
+                    if counterparty_match or num_match:
                         open_inv_match = inv
                         break
 
         if open_inv_match:
             # Found matching open invoice: Candidate for payment creation!
             total_paid, bal_due, p_status = calculate_invoice_financials(open_inv_match)
+            cparty = open_inv_match.customer_name if is_credit and open_inv_match.customer_name else open_inv_match.vendor_name
             item = ReconciliationItem(
                 batch_id=batch.id,
                 user_id=user_id,
@@ -501,15 +563,15 @@ def run_bank_reconciliation(
                 item_type="BANK",
                 match_status="AMBIGUOUS_MATCH",
                 record_identifier=record_id,
-                vendor_or_counterparty=open_inv_match.vendor_name,
+                vendor_or_counterparty=cparty,
                 transaction_date=raw_date_str,
                 expected_value=f"{open_inv_match.currency} {bal_due:.2f} due",
-                actual_value=f"{raw_cur} {debit_val:.2f}",
-                discrepancy_amount=debit_val - bal_due,
+                actual_value=f"{raw_cur} {txn_amount:.2f}",
+                discrepancy_amount=txn_amount - bal_due,
                 currency=raw_cur,
                 evidence_text=(
-                    f"Potential unrecorded bank settlement: Bank debit {raw_cur} {debit_val:.2f} matches "
-                    f"open balance on Invoice #{open_inv_match.invoice_number} ({open_inv_match.vendor_name})."
+                    f"Potential unrecorded bank settlement: Bank {txn_label} {raw_cur} {txn_amount:.2f} matches "
+                    f"open balance on Invoice #{open_inv_match.invoice_number} ({cparty})."
                 ),
                 action_recommendation="Review and click 'Confirm & Record Payment' to record this payment in InvoiceIQ.",
                 review_status="PENDING",
@@ -529,11 +591,11 @@ def run_bank_reconciliation(
             vendor_or_counterparty=raw_desc,
             transaction_date=raw_date_str,
             expected_value="Unmatched",
-            actual_value=f"{raw_cur} {debit_val:.2f}",
-            discrepancy_amount=debit_val,
+            actual_value=f"{raw_cur} {txn_amount:.2f}",
+            discrepancy_amount=txn_amount,
             currency=raw_cur,
-            evidence_text=f"Bank debit of {raw_cur} {debit_val:.2f} ('{raw_desc}') does not correspond to any invoice or payment.",
-            action_recommendation="Verify if this represents non-invoice operating expense, bank fee, or unrecorded bill.",
+            evidence_text=f"Bank {txn_label} of {raw_cur} {txn_amount:.2f} ('{raw_desc}') does not correspond to any invoice or payment.",
+            action_recommendation=f"Verify if this represents non-invoice operating {'receipt' if is_credit else 'expense'}, bank fee, or unrecorded bill.",
             review_status="PENDING",
             raw_record_json=json.dumps(row),
         )
