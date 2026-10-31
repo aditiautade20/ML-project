@@ -33,6 +33,19 @@ app = FastAPI(
 @app.on_event("startup")
 def on_startup():
     init_db()
+    # Auto-seed demo credentials for seamless cloud evaluation (no shell required on free tier)
+    try:
+        from app.database import SessionLocal
+        from app.models.user import User
+        from app.demo_seed import DEMO_USER_EMAIL, seed_demo_data
+        with SessionLocal() as db:
+            demo_user = db.query(User).filter(User.email == DEMO_USER_EMAIL).first()
+            if not demo_user:
+                logger.info("Initializing demo user and sample dataset for cloud deployment...")
+                seed_demo_data(db, run_ml_assessment=True)
+                logger.info("Demo user (demo@invoiceiq.local) initialized successfully.")
+    except Exception as exc:
+        logger.warning(f"Demo auto-seed notice: {exc}")
 
 
 @app.exception_handler(Exception)
