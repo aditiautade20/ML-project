@@ -1,11 +1,13 @@
-const rawApiUrl = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== '')
+const defaultProdBackend = 'https://invoiceiq-backend-qsb1.onrender.com';
+
+const configuredApiUrl = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== '')
   ? import.meta.env.VITE_API_URL
-  : (import.meta.env.PROD ? '' : 'http://127.0.0.1:8000');
+  : (import.meta.env.PROD ? defaultProdBackend : 'http://127.0.0.1:8000');
 
 // Ensure scheme is present if a bare host is supplied (e.g., from Render Blueprint property: host)
-export const API_BASE_URL = (rawApiUrl && !rawApiUrl.startsWith('http://') && !rawApiUrl.startsWith('https://') && !rawApiUrl.startsWith('/'))
-  ? `https://${rawApiUrl}`
-  : rawApiUrl;
+export const API_BASE_URL = (configuredApiUrl && !configuredApiUrl.startsWith('http://') && !configuredApiUrl.startsWith('https://') && !configuredApiUrl.startsWith('/'))
+  ? `https://${configuredApiUrl}`
+  : (configuredApiUrl || defaultProdBackend);
 
 export class ApiError extends Error {
   constructor(message, status = 500, detail = null) {
@@ -83,6 +85,13 @@ export async function apiRequest(endpoint, options = {}) {
     }
 
     throw new ApiError(message, response.status, data);
+  }
+
+  if (data === null) {
+    throw new ApiError(
+      `Received non-JSON response from server (${response.status} ${response.statusText || 'OK'}). Check backend connectivity at ${API_BASE_URL}.`,
+      response.status
+    );
   }
 
   return data;

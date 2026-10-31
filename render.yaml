@@ -50,7 +50,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: invoiceiq-backend
-          property: host
+        value: https://invoiceiq-backend-qsb1.onrender.com
