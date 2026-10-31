@@ -1,5 +1,6 @@
 # Render Blueprint for InvoiceIQ
 # https://render.com/docs/blueprint-spec
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
 
 services:
   # ============================================================================
@@ -37,11 +38,9 @@ services:
   # ============================================================================
   # 2. Frontend Static Site (React 18 + Vite)
   # ============================================================================
-  - type: static
+  - type: web
     name: invoiceiq-frontend
     runtime: static
-    region: oregon
-    plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
@@ -54,4 +53,4 @@ services:
         fromService:
           type: web
           name: invoiceiq-backend
-          property: url
+          property: host

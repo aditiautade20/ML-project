@@ -1,6 +1,11 @@
-export const API_BASE_URL = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== '')
+const rawApiUrl = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== '')
   ? import.meta.env.VITE_API_URL
   : (import.meta.env.PROD ? '' : 'http://127.0.0.1:8000');
+
+// Ensure scheme is present if a bare host is supplied (e.g., from Render Blueprint property: host)
+export const API_BASE_URL = (rawApiUrl && !rawApiUrl.startsWith('http://') && !rawApiUrl.startsWith('https://') && !rawApiUrl.startsWith('/'))
+  ? `https://${rawApiUrl}`
+  : rawApiUrl;
 
 export class ApiError extends Error {
   constructor(message, status = 500, detail = null) {
